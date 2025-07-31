@@ -1,65 +1,87 @@
 import streamlit as st
 import numpy as np
+import joblib
 import matplotlib.pyplot as plt
 
-# Page configuration
+# Set page config
 st.set_page_config(page_title="Smart Irrigation System", layout="wide")
 
-# Add a header banner image (optional, hosted online or in your folder)
+# Custom CSS for background
 st.markdown(
     """
-    <div style='text-align: center; margin-bottom: 20px;'>
-        <h1 style='color:#2c7be5;'>🌱 Smart Irrigation Monitoring System 💧</h1>
-        <p style='font-size:18px;'>Simulate and visualize sensor values to manage sprinkler systems</p>
-    </div>
-    """, unsafe_allow_html=True
+    <style>
+        .stApp {
+            background-image: url('background.jpg');
+            background-size: cover;
+            background-repeat: no-repeat;
+            background-attachment: fixed;
+        }
+        .title-text {
+            background-color: rgba(255, 255, 255, 0.8);
+            padding: 20px;
+            border-radius: 10px;
+        }
+    </style>
+    """,
+    unsafe_allow_html=True
 )
 
+# Title
+st.markdown(
+    """
+    <div class='title-text' style='text-align: center; margin-bottom: 20px;'>
+        <h1 style='color:#2c7be5;'>🌱 Smart Irrigation Monitoring System 💧</h1>
+        <p style='font-size:18px;'>Control 20-zone sprinkler system based on live sensor input</p>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+
+# Load model
+try:
+    model = joblib.load("Farm_Irrigation_System.pkl")
+except Exception as e:
+    st.error("Error loading model. Please ensure the file 'Farm_Irrigation_System.pkl' exists and is valid.")
+    st.stop()
+
+# Sidebar input
 st.sidebar.header("Sensor Input Panel")
+sensor_values = []
+for i in range(20):
+    value = st.sidebar.slider(f"Sensor {i}", 0.0, 1.0, 0.5, 0.01)
+    sensor_values.append(value)
 
-# Collecting simulated sensor inputs
-moisture = st.sidebar.slider("Soil Moisture (0 - Dry to 1 - Wet)", 0.0, 1.0, 0.4, 0.01)
-temperature = st.sidebar.slider("Temperature (°C)", 10, 50, 30)
-humidity = st.sidebar.slider("Humidity (%)", 0, 100, 50)
+# Show current sensor values
+cols = st.columns(4)
+for i in range(20):
+    with cols[i % 4]:
+        st.metric(f"Sensor {i}", f"{sensor_values[i]:.2f}")
 
-# Display values in columns
-col1, col2, col3 = st.columns(3)
-col1.metric("🌾 Soil Moisture", f"{moisture:.2f}")
-col2.metric("🌡️ Temperature", f"{temperature}°C")
-col3.metric("💦 Humidity", f"{humidity}%")
+# Predict button
+if st.button("Predict Sprinkler Status"):
+    input_data = np.array(sensor_values).reshape(1, -1)
 
-# Dummy prediction logic (you can integrate your ML model here)
-def sprinkler_status(moisture, temperature, humidity):
-    # Simple logic: if moisture < 0.5 and temperature > 25 and humidity < 70 => Turn ON
-    if moisture < 0.5 and temperature > 25 and humidity < 70:
-        return "ON"
-    else:
-        return "OFF"
+    try:
+        prediction = model.predict(input_data)[0]
 
-status = sprinkler_status(moisture, temperature, humidity)
+        st.markdown("### 💡 Prediction Results")
+        for i, val in enumerate(prediction):
+            st.write(f"Sprinkler for Zone {i}: {'🟢 ON' if val == 1 else '🔴 OFF'}")
 
-# Display result
-st.markdown("### 💡 Sprinkler Status")
-if status == "ON":
-    st.success("✅ Sprinklers should be turned **ON**")
-else:
-    st.warning("❌ Sprinklers should remain **OFF**")
+        # Plot
+        st.markdown("### 📊 Sensor Moisture Profile")
+        fig, ax = plt.subplots()
+        ax.plot(range(20), sensor_values, marker='o', color='#2c7be5')
+        ax.set_xlabel("Sensor Index")
+        ax.set_ylabel("Moisture Level")
+        ax.set_ylim(0, 1)
+        ax.grid(True)
+        st.pyplot(fig)
 
-# Visual representation
-st.markdown("### 📊 Soil Moisture Simulation")
-fig, ax = plt.subplots()
-x = np.arange(1, 11)
-y = np.clip(np.random.normal(moisture, 0.05, size=10), 0, 1)
-ax.plot(x, y, marker='o', color='#2c7be5')
-ax.set_ylim(0, 1)
-ax.set_ylabel("Soil Moisture")
-ax.set_xlabel("Sensor Zones")
-st.pyplot(fig)
+    except ValueError as ve:
+        st.error(f"Model input error: {ve}")
+    except Exception as ex:
+        st.error(f"Prediction error: {ex}")
 
 # Footer
-st.markdown(
-    """
-    <hr>
-    <p style='text-align: center; font-size: 14px;'>🚀 Project created during AICTE Edunet Foundation Internship | Streamlit Powered</p>
-    """, unsafe_allow_html=True
-)
+st.markdown("<hr><center>🚀 AICTE Edunet Internship Project | Built using Streamlit</center>", unsafe_allow_html=True)
